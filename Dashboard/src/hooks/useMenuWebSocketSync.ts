@@ -104,6 +104,7 @@ export function useMenuWebSocketSync(): void {
     }
 
     if (type === 'ENTITY_DELETED') {
+      if (!id) return
       switch (entity) {
         case 'category':
           useCategoryStore.getState().applyWSDeleted(id)
@@ -164,6 +165,7 @@ export function useMenuWebSocketSync(): void {
 
 function _handleCascadeDelete(event: WSEvent, t: (key: string, opts?: Record<string, unknown>) => string): void {
   const { entity, id, affected } = event
+  if (!id) return
 
   switch (entity) {
     case 'category': {
