@@ -92,8 +92,13 @@ _DEV_ORIGINS = [
 
 
 def _get_allowed_origins() -> list[str]:
-    """Return CORS origins from environment or dev defaults."""
-    if settings.ENVIRONMENT == "production" and settings.ALLOWED_ORIGINS:
+    """Return CORS origins from environment or dev defaults.
+
+    If ALLOWED_ORIGINS is set in the env (any environment — staging, production,
+    or even dev when overriding), it takes precedence. Falls back to _DEV_ORIGINS
+    (localhost) only when ALLOWED_ORIGINS is empty.
+    """
+    if settings.ALLOWED_ORIGINS:
         return [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
     return _DEV_ORIGINS
 
