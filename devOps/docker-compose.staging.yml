@@ -117,7 +117,11 @@ services:
       - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-15}
       - JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
       - JWT_TABLE_TOKEN_EXPIRE_HOURS=${JWT_TABLE_TOKEN_EXPIRE_HOURS:-3}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5176,http://localhost:5177,http://localhost:5178}
+      # ALLOWED_ORIGINS hardcoded a las URLs de Vercel del staging.
+      # EasyPanel no propaga env vars de la UI a docker-compose interpolation
+      # de forma confiable, asi que el default es la fuente de verdad.
+      # Si cambias las URLs de Vercel, editar aqui y redeployar.
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://restaurant-pwawaiter.vercel.app,https://restaurant-pwamenu.vercel.app,https://restaurant-implementado.vercel.app}
       - PYTHONPATH=/app
     ports:
       - "8000:8000"
@@ -163,7 +167,8 @@ services:
       - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
       - TABLE_TOKEN_SECRET=${TABLE_TOKEN_SECRET:-INSECURE_TABLE_TOKEN_OVERRIDE_IN_EASYPANEL_min32_______}
       - TABLE_TOKEN_TTL_SECONDS=${TABLE_TOKEN_TTL_SECONDS:-10800}
-      - WS_ALLOWED_ORIGINS=${WS_ALLOWED_ORIGINS:-http://localhost:5176,http://localhost:5177,http://localhost:5178}
+      # WS_ALLOWED_ORIGINS hardcoded — mismo motivo que ALLOWED_ORIGINS arriba.
+      - WS_ALLOWED_ORIGINS=${WS_ALLOWED_ORIGINS:-https://restaurant-pwawaiter.vercel.app,https://restaurant-pwamenu.vercel.app,https://restaurant-implementado.vercel.app}
       - WS_ALLOW_NO_ORIGIN=false
       - WS_MAX_CONNECTIONS=${WS_MAX_CONNECTIONS:-200}
       - WS_MAX_CONNECTIONS_PER_USER=${WS_MAX_CONNECTIONS_PER_USER:-3}
