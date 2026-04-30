@@ -88,8 +88,9 @@ services:
   # --- Backend REST API (FastAPI) ---
   backend:
     build:
-      context: ..
-      dockerfile: backend/Dockerfile
+      # Context = backend/ (the Dockerfile expects this layout)
+      context: ../backend
+      dockerfile: Dockerfile
     container_name: integrador_backend_staging
     environment:
       - ENVIRONMENT=staging
@@ -104,7 +105,7 @@ services:
       - JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
       - JWT_TABLE_TOKEN_EXPIRE_HOURS=${JWT_TABLE_TOKEN_EXPIRE_HOURS:-3}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required (comma-separated Vercel URLs)}
-      - PYTHONPATH=/app/backend
+      - PYTHONPATH=/app
     ports:
       - "8000:8000"
     depends_on:
@@ -117,17 +118,20 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 45s
+      start_period: 60s
     restart: unless-stopped
-    # No volume mount — staging runs built code, not host source
+    # No volume mount — staging runs built code, not host source.
+    # Migrations + seed run on every startup (both are idempotent).
     command: >
-      python -m uvicorn rest_api.main:app
-        --host 0.0.0.0
-        --port 8000
-        --workers 2
-        --limit-concurrency 50
-        --timeout-keep-alive 30
-        --access-log
+      sh -c "alembic upgrade head &&
+             python -m rest_api.seeds.runner &&
+             python -m uvicorn rest_api.main:app
+               --host 0.0.0.0
+               --port 8000
+               --workers 2
+               --limit-concurrency 50
+               --timeout-keep-alive 30
+               --access-log"
     deploy:
       resources:
         limits:
