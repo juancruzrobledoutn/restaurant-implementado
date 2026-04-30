@@ -25,6 +25,6 @@ export async function getDinerSession(signal?: AbortSignal): Promise<Session> {
     id: toStringId(dto.session.id),
     branchSlug: dto.branch_slug,
     tableCode: dto.table.code,
-    status: dto.session.status,
+    status: dto.session.status as Session['status'],
   }
 }

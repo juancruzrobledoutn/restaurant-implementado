@@ -66,7 +66,7 @@ export function useMenuWebSocketSync(): void {
           useRecipeStore.getState().applyWSCreated(payload)
           break
         case 'promotion':
-          usePromotionStore.getState().applyWSCreated(payload as Promotion)
+          usePromotionStore.getState().applyWSCreated(payload as unknown as Promotion)
           break
       }
       return
@@ -97,7 +97,7 @@ export function useMenuWebSocketSync(): void {
           useRecipeStore.getState().applyWSUpdated(payload)
           break
         case 'promotion':
-          usePromotionStore.getState().applyWSUpdated(payload as Promotion)
+          usePromotionStore.getState().applyWSUpdated(payload as unknown as Promotion)
           break
       }
       return

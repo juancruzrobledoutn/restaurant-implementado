@@ -65,7 +65,7 @@ export function BillingRealtimeBridge() {
     const payload = event.payload as Record<string, unknown>
 
     if (type === 'CHECK_REQUESTED' || type === 'CHECK_PAID') {
-      const p = payload as WSCheckPayload
+      const p = payload as unknown as WSCheckPayload
       const checkStatus: CheckStatus = type === 'CHECK_PAID' ? 'PAID' : 'REQUESTED'
       const check: CheckSummary = {
         id: String(p.check_id),
@@ -81,7 +81,7 @@ export function BillingRealtimeBridge() {
     }
 
     if (type === 'PAYMENT_APPROVED' || type === 'PAYMENT_REJECTED') {
-      const p = payload as WSPaymentPayload
+      const p = payload as unknown as WSPaymentPayload
       const paymentStatus: PaymentStatus = type === 'PAYMENT_APPROVED' ? 'APPROVED' : 'REJECTED'
       const payment: PaymentSummary = {
         id: String(p.payment_id),

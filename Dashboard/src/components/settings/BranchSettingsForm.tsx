@@ -62,8 +62,9 @@ export function BranchSettingsForm({ branchId }: BranchSettingsFormProps) {
 
   // Sync local state when branchSettings loads
   useEffect(() => {
-    if (branchSettings?.opening_hours) {
-      startTransition(() => setOpeningHours(branchSettings.opening_hours))
+    const hours = branchSettings?.opening_hours
+    if (hours) {
+      startTransition(() => setOpeningHours(hours))
     }
   }, [branchSettings])
 
