@@ -135,16 +135,11 @@ services:
     restart: unless-stopped
     # No volume mount — staging runs built code, not host source.
     # Migrations + seed run on every startup (both are idempotent).
-    command: >
-      sh -c "alembic upgrade head &&
-             python -m rest_api.seeds.runner &&
-             python -m uvicorn rest_api.main:app
-               --host 0.0.0.0
-               --port 8000
-               --workers 2
-               --limit-concurrency 50
-               --timeout-keep-alive 30
-               --access-log"
+    # Array form + exec to avoid double-shell wrapping that may eat flags.
+    command:
+      - sh
+      - -c
+      - "alembic upgrade head && python -m rest_api.seeds.runner && exec python -m uvicorn rest_api.main:app --host 0.0.0.0 --port 8000 --workers 1 --limit-concurrency 50 --timeout-keep-alive 30 --access-log"
     deploy:
       resources:
         limits:
@@ -192,14 +187,7 @@ services:
       retries: 3
       start_period: 30s
     restart: unless-stopped
-    command: >
-      python -m uvicorn ws_gateway.main:app
-        --host 0.0.0.0
-        --port 8001
-        --workers 1
-        --limit-concurrency 100
-        --timeout-keep-alive 65
-        --access-log
+    command: ["python", "-m", "uvicorn", "ws_gateway.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1", "--limit-concurrency", "100", "--timeout-keep-alive", "65", "--access-log"]
     deploy:
       resources:
         limits:
