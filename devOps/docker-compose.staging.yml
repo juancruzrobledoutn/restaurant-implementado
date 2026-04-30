@@ -1,0 +1,199 @@
+# Staging Docker Compose for Integrador
+#
+# Designed for EasyPanel deployment on a single VPS (Hostinger KVM4 or similar).
+#
+# What's INCLUDED (functional minimum):
+#   - PostgreSQL with pgvector
+#   - Redis (cache, pub/sub, streams)
+#   - Backend REST API (FastAPI) — 1 replica, 2 workers
+#   - WebSocket Gateway — 1 replica, 1 worker
+#
+# What's EXCLUDED vs production (and why):
+#   - nginx + certbot           → EasyPanel handles SSL + reverse proxy
+#   - backend-2, ws_gateway_2   → no need for HA in staging (~10 testers)
+#   - redis-sentinel            → only useful with master/slave replicas
+#   - Prometheus/Grafana/Loki   → no observability needed for feature testing
+#   - pgadmin                   → user opted out
+#
+# Frontends (Dashboard, pwaMenu, pwaWaiter) deploy SEPARATELY to Vercel.
+# This compose ONLY runs the backend services.
+#
+# Usage:
+#   1. Copy devOps/.env.staging.example to devOps/.env and fill ALL secrets
+#   2. In EasyPanel: create a "Compose" service pointing to this file
+#   3. Set up two domains in EasyPanel:
+#        api.your-domain.com  → backend:8000     (HTTPS)
+#        ws.your-domain.com   → ws_gateway:8001  (HTTPS, WebSocket enabled)
+#   4. Add the Vercel frontend URLs to ALLOWED_ORIGINS and WS_ALLOWED_ORIGINS
+
+services:
+  # --- PostgreSQL with pgvector ---
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: integrador_db_staging
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - pgdata-staging:/var/lib/postgresql/data
+    # No port exposure — only internal Docker network access (backend reaches db:5432)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+
+  # --- Redis (cache + pub/sub + streams) ---
+  redis:
+    image: redis:7-alpine
+    container_name: integrador_redis_staging
+    volumes:
+      - redisdata-staging:/data
+    # No port exposure — only internal Docker network access
+    command: >
+      redis-server
+        --appendonly yes
+        --maxmemory 256mb
+        --maxmemory-policy allkeys-lru
+        --save 900 1
+        --save 300 10
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: "0.5"
+        reservations:
+          memory: 128M
+          cpus: "0.1"
+
+  # --- Backend REST API (FastAPI) ---
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: integrador_backend_staging
+    environment:
+      - ENVIRONMENT=staging
+      - DEBUG=false
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required (min 32 chars, generate with openssl rand -base64 32)}
+      - JWT_ISSUER=${JWT_ISSUER:-integrador-staging}
+      - JWT_AUDIENCE=${JWT_AUDIENCE:-integrador-users}
+      - TABLE_TOKEN_SECRET=${TABLE_TOKEN_SECRET:?TABLE_TOKEN_SECRET is required (min 32 chars)}
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      - JWT_TABLE_TOKEN_EXPIRE_HOURS=${JWT_TABLE_TOKEN_EXPIRE_HOURS:-3}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required (comma-separated Vercel URLs)}
+      - PYTHONPATH=/app/backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    restart: unless-stopped
+    # No volume mount — staging runs built code, not host source
+    command: >
+      python -m uvicorn rest_api.main:app
+        --host 0.0.0.0
+        --port 8000
+        --workers 2
+        --limit-concurrency 50
+        --timeout-keep-alive 30
+        --access-log
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+
+  # --- WebSocket Gateway ---
+  ws_gateway:
+    build:
+      context: ..
+      dockerfile: ws_gateway/Dockerfile
+    container_name: integrador_ws_gateway_staging
+    environment:
+      - ENVIRONMENT=staging
+      - DEBUG=false
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - TABLE_TOKEN_SECRET=${TABLE_TOKEN_SECRET}
+      - TABLE_TOKEN_TTL_SECONDS=${TABLE_TOKEN_TTL_SECONDS:-10800}
+      - WS_ALLOWED_ORIGINS=${WS_ALLOWED_ORIGINS:?WS_ALLOWED_ORIGINS is required (comma-separated Vercel URLs)}
+      - WS_ALLOW_NO_ORIGIN=false
+      - WS_MAX_CONNECTIONS=${WS_MAX_CONNECTIONS:-200}
+      - WS_MAX_CONNECTIONS_PER_USER=${WS_MAX_CONNECTIONS_PER_USER:-3}
+      - WS_BROADCAST_WORKERS=${WS_BROADCAST_WORKERS:-5}
+      - WS_BROADCAST_QUEUE_SIZE=${WS_BROADCAST_QUEUE_SIZE:-2000}
+      - WS_STREAM_CRITICAL=${WS_STREAM_CRITICAL:-events:critical}
+      - WS_STREAM_GROUP=${WS_STREAM_GROUP:-ws_gateway_group}
+      - WS_STREAM_DLQ=${WS_STREAM_DLQ:-events:dlq}
+      - PYTHONPATH=/app/backend
+    ports:
+      - "8001:8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    command: >
+      python -m uvicorn ws_gateway.main:app
+        --host 0.0.0.0
+        --port 8001
+        --workers 1
+        --limit-concurrency 100
+        --timeout-keep-alive 65
+        --access-log
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 192M
+          cpus: "0.25"
+
+volumes:
+  pgdata-staging:
+    name: integrador_pgdata_staging
+  redisdata-staging:
+    name: integrador_redisdata_staging
