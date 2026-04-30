@@ -1,0 +1,54 @@
+# =============================================================================
+# Integrador - Crontab Configuration Example
+# =============================================================================
+#
+# Install with: crontab -e (then paste the desired lines)
+# Or install programmatically: (crontab -l 2>/dev/null; cat backup-cron.example) | crontab -
+#
+# IMPORTANT: Update /path/to/devOps to your actual path
+# Example: /home/deploy/integrador/devOps
+#
+# Verify cron is running: systemctl status cron
+# Check cron logs: grep CRON /var/log/syslog
+# =============================================================================
+
+# Environment (adjust as needed)
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=admin@yourdomain.com
+
+# -----------------------------------------------------------------------------
+# Daily backup at 3:00 AM (server local time)
+# Keeps last 7 daily backups by default
+# -----------------------------------------------------------------------------
+0 3 * * * cd /path/to/devOps && ./backup/backup.sh >> /var/log/integrador-backup.log 2>&1
+
+# -----------------------------------------------------------------------------
+# Weekly full backup every Sunday at 2:00 AM
+# Keeps last 4 weekly backups by default
+# -----------------------------------------------------------------------------
+0 2 * * 0 cd /path/to/devOps && BACKUP_TYPE=weekly ./backup/backup.sh >> /var/log/integrador-backup.log 2>&1
+
+# -----------------------------------------------------------------------------
+# Log rotation for backup logs (monthly)
+# -----------------------------------------------------------------------------
+0 0 1 * * /usr/sbin/logrotate -f /etc/logrotate.d/integrador-backup 2>/dev/null || true
+
+# -----------------------------------------------------------------------------
+# Optional: Health check after daily backup (3:15 AM)
+# Sends alert if API is not responding
+# -----------------------------------------------------------------------------
+# 15 3 * * * curl -sf http://localhost:8000/api/health > /dev/null || echo "Integrador API health check failed after backup" | mail -s "ALERT: Integrador Health Check" admin@yourdomain.com
+
+# -----------------------------------------------------------------------------
+# Optional: Offsite backup sync (4:00 AM, after backup completes)
+# Uncomment and configure for your storage provider
+# -----------------------------------------------------------------------------
+# AWS S3
+# 0 4 * * * aws s3 sync /path/to/devOps/backups/ s3://your-bucket/integrador-backups/ --delete >> /var/log/integrador-backup.log 2>&1
+
+# Google Cloud Storage
+# 0 4 * * * gsutil -m rsync -d /path/to/devOps/backups/ gs://your-bucket/integrador-backups/ >> /var/log/integrador-backup.log 2>&1
+
+# rsync to remote server
+# 0 4 * * * rsync -avz --delete /path/to/devOps/backups/ user@backup-server:/backups/integrador/ >> /var/log/integrador-backup.log 2>&1

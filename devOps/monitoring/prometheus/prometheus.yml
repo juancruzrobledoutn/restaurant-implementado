@@ -1,0 +1,90 @@
+# Prometheus Configuration for Integrador (C-23: monitoring-production)
+# Pull model: Prometheus scrapes /metrics endpoints from all services.
+#
+# Scrape targets:
+#   backend         :8000/metrics  — FastAPI via prometheus-fastapi-instrumentator
+#   ws_gateway      :8001/metrics  — custom websocket_* metrics
+#   redis_exporter  :9121/metrics  — Redis memory, clients, keyspace
+#   postgres_exporter :9187/metrics — PostgreSQL connections, replication, cache
+#
+# Alert rules: loaded from alerts.yml
+# Alertmanager: http://alertmanager:9093
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+  external_labels:
+    cluster: integrador
+    environment: production
+
+# Alert rules file
+rule_files:
+  - "alerts.yml"
+
+# Alertmanager connection
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+scrape_configs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Backend REST API (FastAPI + prometheus-fastapi-instrumentator)
+  # Metrics: http_requests_total, http_request_duration_seconds,
+  #          http_requests_in_progress
+  # ─────────────────────────────────────────────────────────────────────────────
+  - job_name: "backend"
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "backend:8000"
+          - "backend-2:8000"
+        labels:
+          service: backend
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # WebSocket Gateway (custom prometheus-client metrics)
+  # Metrics: websocket_connections_active, websocket_messages_total,
+  #          websocket_connections_total, websocket_errors_total
+  # ─────────────────────────────────────────────────────────────────────────────
+  - job_name: "ws_gateway"
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "ws_gateway:8001"
+          - "ws_gateway_2:8001"
+        labels:
+          service: ws_gateway
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Redis Exporter (oliver006/redis_exporter)
+  # Metrics: redis_connected_clients, redis_memory_used_bytes,
+  #          redis_keyspace_hits_total, redis_keyspace_misses_total, etc.
+  # ─────────────────────────────────────────────────────────────────────────────
+  - job_name: "redis"
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+        labels:
+          service: redis
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PostgreSQL Exporter (prometheuscommunity/postgres-exporter)
+  # Metrics: pg_stat_activity_count, pg_stat_bgwriter_*, pg_locks_count, etc.
+  # ─────────────────────────────────────────────────────────────────────────────
+  - job_name: "postgres"
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels:
+          service: postgres
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Prometheus self-monitoring
+  # ─────────────────────────────────────────────────────────────────────────────
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          service: prometheus

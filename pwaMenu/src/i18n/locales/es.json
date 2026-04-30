@@ -1,0 +1,280 @@
+{
+  "app": {
+    "name": "Buen Sabor",
+    "loading": "Cargando...",
+    "error": "Ocurrió un error"
+  },
+  "common": {
+    "loading": "Cargando...",
+    "error": "Ocurrió un error",
+    "retry": "Reintentar",
+    "cancel": "Cancelar",
+    "back": "Volver",
+    "close": "Cerrar",
+    "confirm": "Confirmar",
+    "save": "Guardar",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "search": "Buscar",
+    "clear": "Limpiar",
+    "accept": "Aceptar",
+    "continue": "Continuar",
+    "yes": "Sí",
+    "no": "No",
+    "optional": "Opcional"
+  },
+  "scanner": {
+    "title": "Escaneá tu mesa",
+    "instructions": "Apuntá la cámara al código QR de tu mesa para comenzar",
+    "manualFallback": "¿No podés escanear? Ingresá los datos manualmente",
+    "manualBranchSlug": "Código de sucursal",
+    "manualTableCode": "Código de mesa",
+    "manualToken": "Token (en el QR)",
+    "manualSubmit": "Ingresar",
+    "permissionDenied": "No tenés permiso para usar la cámara. Ingresá los datos manualmente.",
+    "sessionExpired": "Tu sesión expiró. Volvé a escanear el QR.",
+    "invalidQr": "Código QR inválido. Intentá de nuevo o usá el formulario manual.",
+    "cameraError": "No se pudo acceder a la cámara",
+    "askWaiter": "Pedile al mozo el link de activación"
+  },
+  "session": {
+    "activating": "Activando tu sesión...",
+    "error": "No se pudo activar la sesión. Volvé a escanear.",
+    "persistWarning": "Tu sesión no se puede guardar en este dispositivo. Si cerrás la pestaña deberás escanear nuevamente.",
+    "expired": "Tu sesión expiró",
+    "active": "Sesión activa"
+  },
+  "menu": {
+    "title": "Menú",
+    "search": "Buscar en el menú...",
+    "empty": "El menú está vacío por el momento",
+    "loading": "Cargando menú...",
+    "filters": "Filtros",
+    "noResults": "No hay productos que coincidan con tu búsqueda",
+    "categories": "Categorías",
+    "allCategories": "Todas las categorías",
+    "clearFilters": "Limpiar filtros"
+  },
+  "product": {
+    "addToCart": "Agregar al carrito",
+    "allergens": "Alérgenos",
+    "imageAlt": "Imagen de {{name}}",
+    "unavailable": "No disponible",
+    "priceCents": "Precio",
+    "description": "Descripción"
+  },
+  "allergen": {
+    "title": "Filtrar por alérgenos",
+    "clear": "Limpiar filtros",
+    "GLUTEN": "Gluten",
+    "CRUSTACEAN": "Crustáceos",
+    "EGG": "Huevo",
+    "FISH": "Pescado",
+    "PEANUT": "Maní",
+    "SOY": "Soja",
+    "MILK": "Leche",
+    "NUTS": "Frutos secos",
+    "CELERY": "Apio",
+    "MUSTARD": "Mostaza",
+    "SESAME": "Sésamo",
+    "SULPHITE": "Sulfitos",
+    "LUPIN": "Altramuz",
+    "MOLLUSC": "Moluscos"
+  },
+  "cart": {
+    "title": "Tu carrito",
+    "empty": "Tu carrito está vacío",
+    "goToMenu": "Ver el menú",
+    "add": "Agregar",
+    "remove": "Eliminar",
+    "increment": "Aumentar cantidad",
+    "decrement": "Disminuir cantidad",
+    "myItems": "Mis pedidos",
+    "sharedItems": "Pedidos de otros",
+    "sharedBy": "Pedido por {{name}}",
+    "itemCount_one": "{{count}} artículo",
+    "itemCount_other": "{{count}} artículos",
+    "pending": "Sincronizando...",
+    "confirmedSubtotal": "Subtotal confirmado",
+    "total": "Total",
+    "confirm": {
+      "cta": "Revisar pedido",
+      "title": "Confirmar pedido",
+      "notes_label": "Notas para la cocina",
+      "notes_placeholder": "Ej: sin sal, alergia al maní...",
+      "submit": "Enviar ronda",
+      "stockAvailable": "Disponible: {{available}} / Pedido: {{requested}}"
+    },
+    "blocked": {
+      "paying": {
+        "tooltip": "La cuenta ya fue solicitada. No se pueden agregar nuevos pedidos.",
+        "banner": "La cuenta ya fue solicitada. No podés agregar nuevos pedidos."
+      }
+    }
+  },
+  "rounds": {
+    "title": "Mis rondas",
+    "empty": "Aún no enviaste ninguna ronda",
+    "submitted": "¡Ronda enviada con éxito!",
+    "roundNumber": "Ronda {{number}}",
+    "submittedAt": "Enviada a las {{time}}",
+    "readyAt": "Lista a las {{time}}",
+    "servedAt": "Servida a las {{time}}",
+    "showCanceled": "Mostrar canceladas",
+    "hideCanceled": "Ocultar canceladas",
+    "status": {
+      "pending": "Pendiente",
+      "confirmed": "Confirmada",
+      "submitted": "En espera",
+      "in_kitchen": "En cocina",
+      "ready": "¡Lista!",
+      "served": "Servida",
+      "canceled": "Cancelada"
+    }
+  },
+  "connection": {
+    "reconnecting": "Reconectando...",
+    "offline": "Sin conexión",
+    "connected": "Conectado",
+    "auth_failed": "Error de autenticación"
+  },
+  "offline": {
+    "banner": {
+      "disconnected": "Sin conexión — reconectando...",
+      "pending": "{{count}} acción pendiente sincronizando"
+    }
+  },
+  "errors": {
+    "cart": {
+      "add_failed": "No se pudo agregar el artículo. Reintentando...",
+      "session_paying": "La cuenta ya fue solicitada. Redirigiendo al menú...",
+      "insufficient_stock": "Algunos productos no tienen suficiente stock:"
+    },
+    "retry": {
+      "gave_up": "No pudimos completar la operación después de varios intentos. Por favor intentá de nuevo."
+    }
+  },
+  "error": {
+    "notFound": "Página no encontrada",
+    "notFoundMessage": "La página que buscás no existe.",
+    "network": "Error de conexión. Verificá tu internet e intentá de nuevo.",
+    "unknown": "Algo salió mal. Por favor intentá de nuevo.",
+    "tryAgain": "Intentar de nuevo",
+    "goToScan": "Ir al escáner",
+    "sessionRequired": "Necesitás una sesión activa para ver el menú"
+  },
+  "check": {
+    "title": "Tu cuenta",
+    "request": "Solicitar cuenta",
+    "requesting": "Solicitando cuenta...",
+    "total": "Total",
+    "remaining": "Pendiente de pago",
+    "status": {
+      "open": "Abierta",
+      "requested": "Solicitada",
+      "paid": "Pagada",
+      "closed": "Cerrada",
+      "cancelled": "Cancelada"
+    },
+    "split": {
+      "label": "Método de división",
+      "equal": "Dividir en partes iguales",
+      "by_consumption": "Por consumo individual",
+      "custom": "Personalizado"
+    },
+    "charges": {
+      "title": "Cargos",
+      "empty": "No hay cargos aún",
+      "diner": "Comensal",
+      "amount": "Monto"
+    },
+    "paid": {
+      "title": "¡Cuenta pagada!",
+      "message": "Gracias por tu visita. ¡Hasta la próxima!",
+      "receipt": "Ver comprobante"
+    }
+  },
+  "payment": {
+    "title": "Pago con MercadoPago",
+    "cta": "Pagar con MercadoPago",
+    "processing": "Procesando pago...",
+    "redirecting": "Redirigiendo a MercadoPago...",
+    "waiting": "Esperando confirmación de pago...",
+    "retry": "Reintentar pago",
+    "cancel": "Cancelar pago",
+    "approved": {
+      "title": "¡Pago aprobado!",
+      "message": "Tu pago fue procesado exitosamente.",
+      "amount": "Monto pagado: {{amount}}"
+    },
+    "rejected": {
+      "title": "Pago rechazado",
+      "message": "El pago no pudo procesarse. Podés intentarlo de nuevo.",
+      "retry": "Intentar de nuevo"
+    },
+    "failed": {
+      "title": "Error en el pago",
+      "message": "Ocurrió un error técnico. Intentá de nuevo o contactá al personal.",
+      "mismatch": "El resultado del pago no coincide. Por favor contactá al personal."
+    },
+    "timeout": "Tiempo de espera agotado. Verificá el estado de tu pago.",
+    "polling": "Verificando estado del pago..."
+  },
+  "customer": {
+    "profile": {
+      "title": "Mi perfil",
+      "notFound": "No tenés un perfil asociado a esta sesión.",
+      "history": "Historial de visitas",
+      "historyEmpty": "Todavía no tenés visitas registradas.",
+      "preferences": "Tus favoritos",
+      "preferencesEmpty": "Aún no tenés preferencias registradas.",
+      "visitCount": "{{count}} visita",
+      "visitCount_other": "{{count}} visitas",
+      "visitedAt": "Visitado el {{date}}",
+      "timesOrdered": "{{count}} veces pedido"
+    },
+    "optin": {
+      "title": "Guardá tus datos",
+      "subtitle": "Recibí beneficios personalizados en cada visita",
+      "name": "Nombre",
+      "namePlaceholder": "Tu nombre",
+      "email": "Email",
+      "emailPlaceholder": "tu@email.com",
+      "submit": "Guardar datos",
+      "submitting": "Guardando...",
+      "success": "¡Datos guardados correctamente!",
+      "alreadyOptedIn": "Ya tenés datos registrados.",
+      "errors": {
+        "nameRequired": "El nombre es requerido (mínimo 2 caracteres)",
+        "emailInvalid": "Ingresá un email válido",
+        "consentRequired": "Debés aceptar los términos para continuar"
+      }
+    }
+  },
+  "consent": {
+    "title": "Consentimiento de datos",
+    "checkboxLabel": "Acepto el uso de mis datos personales",
+    "legalText": "Al aceptar, autorizás a Buen Sabor a almacenar y procesar tus datos personales (nombre y email) con el fin de mejorar tu experiencia como cliente. Podés solicitar la eliminación de tus datos en cualquier momento contactando al local.",
+    "body": "Tus datos están protegidos de acuerdo con las leyes de protección de datos vigentes. El IP de tu dispositivo es almacenado de forma anonimizada para registro de consentimiento.",
+    "version": "v1",
+    "required": "Debés aceptar para continuar",
+    "privacy": "Ver política de privacidad"
+  },
+  "errors": {
+    "cart": {
+      "add_failed": "No se pudo agregar el artículo. Reintentando...",
+      "session_paying": "La cuenta ya fue solicitada. Redirigiendo al menú...",
+      "insufficient_stock": "Algunos productos no tienen suficiente stock:"
+    },
+    "billing": {
+      "request_failed": "No se pudo solicitar la cuenta. Intentá de nuevo.",
+      "session_not_open": "La sesión no está abierta. No se puede solicitar la cuenta.",
+      "check_conflict": "Ya existe una cuenta activa para esta sesión.",
+      "preference_error": "No se pudo crear el enlace de pago. Intentá de nuevo.",
+      "payment_mismatch": "El resultado del pago no coincide. Contactá al personal."
+    },
+    "retry": {
+      "gave_up": "No pudimos completar la operación después de varios intentos. Por favor intentá de nuevo."
+    }
+  }
+}

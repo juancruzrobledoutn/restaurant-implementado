@@ -1,0 +1,270 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # ── Backend ───────────────────────────────────────────────────────────────
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: menu_ops_test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - "6380:6379"
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+
+      - name: Install dependencies
+        run: cd backend && pip install -r requirements.txt
+
+      - name: Run tests
+        run: cd backend && python -m pytest tests/ -v --tb=short
+        env:
+          ENVIRONMENT: test
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/menu_ops_test
+          REDIS_URL: redis://localhost:6380
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-test-secret-at-least-32-chars-long' }}
+          TABLE_TOKEN_SECRET: ${{ secrets.TABLE_TOKEN_SECRET || 'ci-table-secret-at-least-32-ch' }}
+          PYTHONPATH: .
+
+  # ── WebSocket Gateway ────────────────────────────────────────────────────
+  ws-gateway:
+    name: WebSocket Gateway (pytest)
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - "6380:6379"
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-ws-${{ hashFiles('ws_gateway/requirements.txt') }}
+
+      - name: Install dependencies
+        run: pip install -r ws_gateway/requirements.txt
+
+      - name: Run tests
+        run: python -m pytest ws_gateway/tests/ -v --tb=short --cov=ws_gateway --cov-fail-under=85
+        env:
+          ENVIRONMENT: test
+          REDIS_URL: redis://localhost:6380
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-test-secret-at-least-32-chars-long' }}
+          TABLE_TOKEN_SECRET: ${{ secrets.TABLE_TOKEN_SECRET || 'ci-table-secret-at-least-32-ch' }}
+          PYTHONPATH: backend
+
+  # ── Dashboard ─────────────────────────────────────────────────────────────
+  dashboard:
+    name: Dashboard (Vite + Vitest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: Dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: cd Dashboard && npm install
+
+      - name: Type check
+        run: cd Dashboard && npm run type-check
+
+      - name: Lint
+        run: cd Dashboard && npm run lint
+
+      - name: Run tests
+        run: cd Dashboard && npm run test:run
+
+      - name: Build
+        run: cd Dashboard && npm run build
+
+  # ── pwaMenu ───────────────────────────────────────────────────────────────
+  pwa-menu:
+    name: pwaMenu (Vite + Vitest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: pwaMenu/package-lock.json
+
+      - name: Install dependencies
+        run: cd pwaMenu && npm install
+
+      - name: Type check
+        run: cd pwaMenu && npm run type-check
+
+      - name: Lint
+        run: cd pwaMenu && npm run lint
+
+      - name: Run tests
+        run: cd pwaMenu && npm run test:run
+
+      - name: Build
+        run: cd pwaMenu && npm run build
+
+  # ── pwaWaiter ─────────────────────────────────────────────────────────────
+  pwa-waiter:
+    name: pwaWaiter (Vite + Vitest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: pwaWaiter/package-lock.json
+
+      - name: Install dependencies
+        run: cd pwaWaiter && npm install
+
+      - name: Type check
+        run: cd pwaWaiter && npm run type-check
+
+      - name: Lint
+        run: cd pwaWaiter && npm run lint
+
+      - name: Run tests
+        run: cd pwaWaiter && npm run test:run
+
+      - name: Build
+        run: cd pwaWaiter && npm run build
+
+  # ── E2E (Playwright) ─────────────────────────────────────────────────────
+  # D-05: runs after all 4 parallel jobs succeed — no point running E2E if
+  # unit tests or builds are broken.
+  e2e:
+    name: E2E (Playwright)
+    needs: [backend, ws-gateway, dashboard, pwa-menu, pwa-waiter]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('e2e/package-lock.json') }}
+          restore-keys: |
+            playwright-
+
+      - name: Install E2E dependencies
+        run: npm ci
+        working-directory: e2e
+
+      - name: Install Playwright browsers (chromium only for CI)
+        run: npx playwright install --with-deps chromium
+        working-directory: e2e
+
+      - name: Start full stack via Docker Compose
+        run: docker compose -f devOps/docker-compose.yml up -d
+
+      - name: Wait for backend health check
+        run: npx wait-on http://localhost:8000/api/health --timeout 60000
+        working-directory: e2e
+
+      - name: Wait for frontend apps
+        run: |
+          npx wait-on http://localhost:5177 --timeout 60000
+          npx wait-on http://localhost:5176 --timeout 60000
+          npx wait-on http://localhost:5178 --timeout 60000
+        working-directory: e2e
+
+      - name: Run E2E tests
+        run: npx playwright test
+        working-directory: e2e
+        env:
+          CI: true
+          API_URL: http://localhost:8000
+          BASE_URL_DASHBOARD: http://localhost:5177
+          BASE_URL_MENU: http://localhost:5176
+          BASE_URL_WAITER: http://localhost:5178
+          TABLE_TOKEN_SECRET: ${{ secrets.TABLE_TOKEN_SECRET || 'ci-table-secret-at-least-32-ch' }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL || 'admin@example.com' }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD || 'changeme' }}
+          TEST_WAITER_EMAIL: ${{ secrets.TEST_WAITER_EMAIL || 'waiter@example.com' }}
+          TEST_WAITER_PASSWORD: ${{ secrets.TEST_WAITER_PASSWORD || 'changeme' }}
+          TEST_KITCHEN_EMAIL: ${{ secrets.TEST_KITCHEN_EMAIL || 'kitchen@example.com' }}
+          TEST_KITCHEN_PASSWORD: ${{ secrets.TEST_KITCHEN_PASSWORD || 'changeme' }}
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+
+      - name: Upload test results (videos + screenshots)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-test-results
+          path: e2e/test-results/
+          retention-days: 7

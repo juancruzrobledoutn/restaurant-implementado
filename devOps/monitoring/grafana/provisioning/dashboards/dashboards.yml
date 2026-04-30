@@ -1,0 +1,22 @@
+# Grafana Dashboard Provisioning (C-23: monitoring-production)
+# Loads all JSON dashboard files from the dashboards directory at startup.
+# No manual import required — dashboards are provisioned from the repo.
+#
+# Dashboard JSONs live at:
+#   devOps/monitoring/grafana/provisioning/dashboards/*.json
+#   (mounted at /etc/grafana/provisioning/dashboards/ in the container)
+apiVersion: 1
+
+providers:
+  - name: "Integrador"
+    orgId: 1
+    folder: "Integrador"
+    type: file
+    # Disallow deletion via UI (dashboards are managed as code)
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

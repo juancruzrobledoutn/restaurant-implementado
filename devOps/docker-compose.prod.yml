@@ -1,0 +1,578 @@
+# Production Docker Compose Override for Horizontal Scaling
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# This overlay scales the backend and ws_gateway to 2 replicas each,
+# adds nginx as a reverse proxy/load balancer, and redis-sentinel for HA.
+#
+# Prerequisites:
+#   - Copy .env.example to .env and fill ALL secrets (no defaults in prod)
+#   - Ensure devOps/nginx/nginx.conf exists
+#   - Ensure devOps/redis/sentinel.conf exists
+#
+# Capacity: ~600 concurrent users (2x backend + 2x ws_gateway)
+# See devOps/SCALING.md for full documentation.
+
+services:
+  # --- Database (override: production tuning) ---
+  db:
+    container_name: integrador_db_prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c effective_cache_size=768MB
+        -c work_mem=16MB
+        -c maintenance_work_mem=128MB
+        -c max_connections=200
+        -c wal_buffers=16MB
+        -c checkpoint_completion_target=0.9
+        -c random_page_cost=1.1
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+
+  # --- Redis (override: production tuning, no port exposure) ---
+  redis:
+    container_name: integrador_redis_prod
+    ports: !override []
+    command: >
+      redis-server
+        --appendonly yes
+        --maxmemory 512mb
+        --maxmemory-policy allkeys-lru
+        --tcp-backlog 511
+        --timeout 300
+        --tcp-keepalive 60
+        --save 900 1
+        --save 300 10
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: "0.5"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+
+  # --- Redis Sentinel for HA ---
+  redis-sentinel:
+    image: redis:7-alpine
+    container_name: integrador_redis_sentinel
+    command: redis-sentinel /etc/redis/sentinel.conf
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # --- Backend replica 1 (override: production mode) ---
+  backend:
+    container_name: integrador_backend_1
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ISSUER=${JWT_ISSUER}
+      - JWT_AUDIENCE=${JWT_AUDIENCE}
+      - TABLE_TOKEN_SECRET=${TABLE_TOKEN_SECRET}
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES}
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_TOKEN_EXPIRE_DAYS}
+      - JWT_TABLE_TOKEN_EXPIRE_HOURS=${JWT_TABLE_TOKEN_EXPIRE_HOURS}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - PYTHONPATH=/app/backend
+    ports:
+      - "8000:8000"
+    volumes: !override []
+    # On both backend and monitoring networks so Prometheus can scrape /metrics
+    networks:
+      - backend
+      - monitoring
+    command: >
+      python -m uvicorn rest_api.main:app
+        --host 0.0.0.0
+        --port 8000
+        --workers 4
+        --limit-concurrency 100
+        --timeout-keep-alive 30
+        --access-log
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.5"
+
+  # --- Backend replica 2 ---
+  backend-2:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: integrador_backend_2
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ISSUER=${JWT_ISSUER}
+      - JWT_AUDIENCE=${JWT_AUDIENCE}
+      - TABLE_TOKEN_SECRET=${TABLE_TOKEN_SECRET}
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES}
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_TOKEN_EXPIRE_DAYS}
+      - JWT_TABLE_TOKEN_EXPIRE_HOURS=${JWT_TABLE_TOKEN_EXPIRE_HOURS}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - PYTHONPATH=/app/backend
+    ports:
+      - "8002:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - backend
+      - monitoring
+    command: >
+      python -m uvicorn rest_api.main:app
+        --host 0.0.0.0
+        --port 8000
+        --workers 4
+        --limit-concurrency 100
+        --timeout-keep-alive 30
+        --access-log
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.5"
+
+  # --- WS Gateway replica 1 (override: production mode) ---
+  ws_gateway:
+    container_name: integrador_ws_gateway_1
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ISSUER=${JWT_ISSUER}
+      - JWT_AUDIENCE=${JWT_AUDIENCE}
+      - TABLE_TOKEN_SECRET=${TABLE_TOKEN_SECRET}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - PYTHONPATH=/app/backend
+    ports:
+      - "8001:8001"
+    volumes: !override []
+    # On both backend and monitoring networks so Prometheus can scrape /metrics
+    networks:
+      - backend
+      - monitoring
+    command: >
+      python -m uvicorn ws_gateway.main:app
+        --host 0.0.0.0
+        --port 8001
+        --workers 2
+        --limit-concurrency 300
+        --timeout-keep-alive 65
+        --access-log
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.5"
+
+  # --- WS Gateway replica 2 ---
+  ws_gateway_2:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: integrador_ws_gateway_2
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ISSUER=${JWT_ISSUER}
+      - JWT_AUDIENCE=${JWT_AUDIENCE}
+      - TABLE_TOKEN_SECRET=${TABLE_TOKEN_SECRET}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - PYTHONPATH=/app/backend
+    ports:
+      - "8003:8001"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/ws/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - backend
+      - monitoring
+    command: >
+      python -m uvicorn ws_gateway.main:app
+        --host 0.0.0.0
+        --port 8001
+        --workers 2
+        --limit-concurrency 300
+        --timeout-keep-alive 65
+        --access-log
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.5"
+
+  # --- Nginx Load Balancer (with SSL termination) ---
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: integrador_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx-ssl.conf:/etc/nginx/nginx.conf:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    depends_on:
+      backend:
+        condition: service_healthy
+      backend-2:
+        condition: service_healthy
+      ws_gateway:
+        condition: service_started
+      ws_gateway_2:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    # Reload nginx when certificates are renewed (every 6 hours)
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+        reservations:
+          memory: 64M
+          cpus: "0.25"
+
+  # --- Certbot (Let's Encrypt certificate renewal) ---
+  certbot:
+    image: certbot/certbot:latest
+    container_name: integrador_certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    # Attempt renewal every 12 hours (Let's Encrypt recommends twice daily)
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done;'"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # =====================================================================
+  # Monitoring & Observability Stack (C-23: monitoring-production)
+  # Network isolation:
+  #   - backend + ws_gateway: on both "backend" and "monitoring" networks
+  #     (so Prometheus can scrape their /metrics endpoints)
+  #   - prometheus, grafana, loki, promtail, alertmanager: ONLY on "monitoring"
+  #   - redis-exporter, postgres-exporter: on both "backend" and "monitoring"
+  #     (need backend network to reach redis/db, monitoring network for Prometheus)
+  #   - Only Grafana exposes a host port; Prometheus/Alertmanager/Loki do NOT
+  # =====================================================================
+
+  # --- Loki (Log Aggregation) ---
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: integrador_loki
+    volumes:
+      - ./monitoring/loki/loki.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    # NO host port exposure — accessible only within monitoring network
+    command: -config.file=/etc/loki/config.yml
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--output-document=-", "http://localhost:3100/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 128M
+          cpus: "0.25"
+
+  # --- Promtail (Log Collector) ---
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: integrador_promtail
+    volumes:
+      - ./monitoring/promtail/promtail.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      loki:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+        reservations:
+          memory: 64M
+          cpus: "0.1"
+
+  # --- Prometheus (Metrics) ---
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: integrador_prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    # NO host port exposure — accessible only within monitoring network
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--output-document=-", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+
+  # --- Alertmanager (Alert routing + notifications) ---
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: integrador_alertmanager
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    # NO host port exposure — accessible only within monitoring network
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    environment:
+      - ALERTMANAGER_WEBHOOK_URL=${ALERTMANAGER_WEBHOOK_URL:-}
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--output-document=-", "http://localhost:9093/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+        reservations:
+          memory: 32M
+          cpus: "0.1"
+
+  # --- Grafana (Dashboards & Visualization) ---
+  # ONLY monitoring service with a host port — access at http://server:3000
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: integrador_grafana
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required in production}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/
+      - GF_LOG_LEVEL=warn
+      # Disable analytics and update checks for security
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--output-document=-", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+        reservations:
+          memory: 128M
+          cpus: "0.25"
+
+  # --- Redis Exporter (Prometheus metrics from Redis) ---
+  # On both "backend" (to reach redis) and "monitoring" (for Prometheus scraping)
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.58.0-alpine
+    container_name: integrador_redis_exporter
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.1"
+
+  # --- PostgreSQL Exporter (Prometheus metrics from PostgreSQL) ---
+  # On both "backend" (to reach db) and "monitoring" (for Prometheus scraping)
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: integrador_postgres_exporter
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.1"
+
+  # --- Node Exporter (Host metrics) ---
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: integrador_node_exporter
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    restart: unless-stopped
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.1"
+
+  # --- Disable pgAdmin in production ---
+  pgadmin:
+    profiles:
+      - debug
+
+networks:
+  backend:
+    driver: bridge
+  monitoring:
+    driver: bridge
+    # Internal-only network — monitoring services cannot initiate outbound
+    # connections to the internet (Prometheus, Alertmanager, Loki stay internal)
+    internal: false
+
+volumes:
+  loki-data:
+    name: integrador_loki_data
+  prometheus-data:
+    name: integrador_prometheus_data
+  grafana-data:
+    name: integrador_grafana_data
+  alertmanager-data:
+    name: integrador_alertmanager_data

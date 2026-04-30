@@ -1,0 +1,152 @@
+# Integrador — Local Development Compose
+#
+# Levanta TODO el sistema con un solo comando desde la raíz del repo:
+#   docker compose up -d        (primera vez: construye las imágenes)
+#   docker compose up -d --build (forzar rebuild si cambiaron Dockerfiles)
+#   docker compose down          (apagar todo)
+#   docker compose logs -f backend  (ver logs de un servicio)
+#
+# URLs disponibles:
+#   Dashboard:  http://localhost:5177
+#   Backend:    http://localhost:8000
+#   WS Gateway: ws://localhost:8001
+#   pgAdmin:    http://localhost:5050  (admin@admin.com / admin)
+#   Redis:      localhost:6380
+#   PostgreSQL: localhost:5432  (postgres/postgres/menu_ops)
+#
+# Usuarios de prueba (creados automáticamente al iniciar):
+#   admin@demo.com    / admin123
+#   manager@demo.com  / manager123
+#   waiter@demo.com   / waiter123
+#   kitchen@demo.com  / kitchen123
+#
+# NO necesitás crear archivos .env — las variables de dev ya están aquí.
+# Para producción usá devOps/docker-compose.prod.yml con secrets reales.
+
+name: integrador
+
+services:
+
+  # ── Infraestructura ─────────────────────────────────────────────────────────
+
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: integrador_db
+    environment:
+      POSTGRES_DB: menu_ops
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d menu_ops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: integrador_redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: integrador_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "5050:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Backend ─────────────────────────────────────────────────────────────────
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: integrador_backend
+    environment:
+      ENVIRONMENT: development
+      DEBUG: "true"
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/menu_ops
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-jwt-secret-change-in-production-min-32
+      TABLE_TOKEN_SECRET: dev-table-secret-change-in-production-min-32chars
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  ws_gateway:
+    build:
+      context: .
+      dockerfile: ws_gateway/Dockerfile
+    container_name: integrador_ws
+    environment:
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-jwt-secret-change-in-production-min-32
+      TABLE_TOKEN_SECRET: dev-table-secret-change-in-production-min-32chars
+      WS_ALLOW_NO_ORIGIN: "true"
+      PYTHONPATH: /app/backend
+    ports:
+      - "8001:8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./ws_gateway:/app/ws_gateway:ro
+      - ./backend/shared:/app/backend/shared:ro
+    restart: unless-stopped
+
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+
+  dashboard:
+    build:
+      context: ./Dashboard
+      dockerfile: Dockerfile.dev
+    container_name: integrador_dashboard
+    environment:
+      VITE_API_URL: http://localhost:8000
+      VITE_WS_URL: ws://localhost:8001
+    ports:
+      - "5177:5177"
+    volumes:
+      - ./Dashboard/src:/app/src
+      - ./Dashboard/public:/app/public
+    restart: unless-stopped
+
+# ── Volúmenes ──────────────────────────────────────────────────────────────────
+# Los datos de la DB y Redis persisten entre reinicios.
+# Para borrar todo y empezar de cero: docker compose down -v
+
+volumes:
+  pgdata:
+    name: integrador_pgdata
+  redisdata:
+    name: integrador_redisdata

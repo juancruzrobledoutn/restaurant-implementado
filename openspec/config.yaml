@@ -1,0 +1,121 @@
+schema: spec-driven
+
+context: |
+  # Integrador / Buen Sabor — Plataforma SaaS de gestión de restaurantes
+
+  ## Sistema
+  Monorepo multi-tenant. Un tenant = un restaurante. Una branch = una sucursal.
+  El proyecto arranca DESDE CERO — no hay código existente, las migraciones empiezan vacías.
+
+  ## Stack
+  - Backend: Python 3.12, FastAPI 0.115, SQLAlchemy 2.0, PostgreSQL 16 + pgvector, Redis 7, Alembic
+  - WS Gateway: FastAPI en puerto 8001, Redis Pub/Sub + Streams
+  - Dashboard: React 19, TypeScript 5.9, Zustand 5, Vite 7.2, Tailwind 4.1 (puerto 5177)
+  - pwaMenu: React 19, TypeScript 5.9, Zustand 5, i18n es/en/pt, PWA (puerto 5176)
+  - pwaWaiter: React 19, TypeScript 5.9, Zustand 5, Push Notifications (puerto 5178)
+  - Testing: Vitest 4.0 (unit), Playwright (E2E), pytest 8.3 (backend)
+  - Infra: Docker Compose, GitHub Actions CI, nginx LB
+
+  ## Arquitectura backend (Clean Architecture estricta)
+  ```
+  Router (thin — solo HTTP, cero lógica)
+    → Domain Service (lógica de negocio)
+      → Repository (acceso a datos, filtra por tenant_id automáticamente)
+        → SQLAlchemy Model
+  ```
+  - NUNCA lógica de negocio en routers
+  - NUNCA usar CRUDFactory (deprecated) — siempre Domain Services
+  - Base classes: BaseCRUDService[Model, Output] y BranchScopedService[Model, Output]
+  - Permisos siempre via PermissionContext, nunca inline en el router
+
+  ## Convenciones críticas — NO negociables
+  - Precios: enteros en centavos (int). $125.50 = 12550. NUNCA float.
+  - IDs: int en backend/DB, string en frontend. Siempre convertir en el boundary.
+  - Soft delete universal: is_active=False. Hard delete solo para registros efímeros.
+  - Multi-tenant: TODA query filtra por tenant_id. Sin excepción.
+  - SQLAlchemy booleans: .where(Model.is_active.is_(True)), NUNCA == True
+  - Commits seguros: safe_commit(db), NUNCA db.commit() directo
+  - Logger: utils/logger.ts (frontend) / get_logger() (backend). NUNCA console.* ni print()
+  - Zustand: SIEMPRE selectores, NUNCA destructuring del store
+  - Palabras SQL reservadas: prefijo app_ (ej: app_check, no check)
+
+  ## Convenciones de nombres
+  - Frontend: camelCase variables, PascalCase componentes/stores
+  - Backend: snake_case variables, PascalCase modelos y servicios
+  - Stores Zustand: camelCase + "Store" (authStore, tableStore)
+  - Domain Services: PascalCase + "Service" (CategoryService, BillingService)
+  - Tests backend: test_ prefix (test_auth.py)
+  - Tests frontend: .test.ts suffix (branchStore.test.ts)
+
+  ## Patrones de eventos WebSocket
+  - Outbox (at-least-once): CHECK_REQUESTED/PAID, PAYMENT_*, ROUND_SUBMITTED/READY, SERVICE_CALL_CREATED
+  - Redis directo (best-effort): ROUND_CONFIRMED/IN_KITCHEN/SERVED, CART_*, TABLE_*, ENTITY_*
+
+  ## Autenticación
+  - Staff (Dashboard, pwaWaiter): JWT en header Authorization: Bearer {token}
+  - Diners (pwaMenu): Table Token HMAC en header X-Table-Token
+  - Access token: 15 min | Refresh token: 7 días (HttpOnly cookie) | Table token: 3 horas
+
+  ## RBAC
+  - ADMIN: acceso total
+  - MANAGER: gestión operativa de sus branches (sin delete)
+  - KITCHEN: solo lectura de rounds/productos, puede actualizar estado en cocina
+  - WAITER: gestión de mesas y pedidos de sus sectores asignados
+
+  ## Máquina de estados de rondas
+  PENDING → CONFIRMED → SUBMITTED → IN_KITCHEN → READY → SERVED (→ CANCELED desde cualquier estado)
+  - Cocina SOLO ve SUBMITTED e IN_KITCHEN. PENDING y CONFIRMED son invisibles para cocina.
+
+  ## Sesiones de mesa
+  OPEN → PAYING → CLOSED
+  - Solo OPEN puede recibir nuevos pedidos
+  - Solo OPEN puede solicitar el check
+  - El check se solicita y la sesión pasa a PAYING automáticamente
+
+  ## Documentación disponible (leer antes de proponer cualquier change)
+  - knowledge-base/01-negocio/01_vision_y_contexto.md — qué es el sistema y por qué existe
+  - knowledge-base/01-negocio/02_actores_y_roles.md — roles y permisos detallados
+  - knowledge-base/01-negocio/04_reglas_de_negocio.md — reglas de negocio por módulo (LEER SIEMPRE)
+  - knowledge-base/01-negocio/06_backlog_completo.md — épicas e historias de usuario
+  - knowledge-base/02-arquitectura/01_arquitectura_general.md — arquitectura del sistema
+  - knowledge-base/02-arquitectura/02_modelo_de_datos.md — modelo de datos completo
+  - knowledge-base/02-arquitectura/03_api_y_endpoints.md — todos los endpoints
+  - knowledge-base/02-arquitectura/04_eventos_y_websocket.md — eventos y WS Gateway
+  - knowledge-base/02-arquitectura/07_decisiones_y_tradeoffs.md — ADRs (por qué el sistema es así)
+  - knowledge-base/05-dx/04_convenciones_y_estandares.md — convenciones canónicas
+  - knowledge-base/05-dx/05_workflow_implementacion.md — pasos concretos para implementar un feature
+  - knowledge-base/05-dx/03_trampas_conocidas.md — gotchas y errores comunes a evitar
+  - knowledge-base/06-estado-del-proyecto/04_roadmap.md — fases y prioridades
+  - knowledge-base/06-estado-del-proyecto/07_backlog_pendiente.md — HUs priorizadas listas para implementar
+  - knowledge-base/07-anexos/02_estructura_del_codigo.md — estructura del monorepo objetivo (crítico para C-01)
+  - knowledge-base/02-arquitectura/04_eventos_y_websocket.md — eventos WS, outbox, routing (crítico para C-09/C-10)
+
+  ## Skills disponibles
+  Antes de implementar cualquier change, cargar las skills apropiadas desde `.agents/SKILLS.md`.
+  Las skills cubren: clean architecture, domain services, Zustand, React 19 forms, WebSocket frontend,
+  PWA, Redis, Alembic migrations, scaffolding inicial (C-01), testing, seguridad y más.
+
+rules:
+  proposal:
+    - SIEMPRE verificar openspec/CHANGES.md antes de proponer: confirmar que el change existe en la secuencia y que sus dependencias están archivadas
+    - Referenciar el ID del change (ej: C-01, C-03) y su número de HU del backlog cuando corresponda
+    - El scope propuesto debe coincidir con el scope definido en CHANGES.md — no agregar ni quitar módulos sin justificación
+    - Incluir siempre una sección "Non-goals" que delimite explícitamente qué NO entra en el change
+    - Mencionar el dominio de governance (CRITICO/ALTO/MEDIO/BAJO) y sus implicaciones
+    - El scope máximo de un change es lo que un agente puede implementar en una sesión (~4-6 horas)
+
+  design:
+    - Especificar los paths exactos de archivos a crear o modificar
+    - Para backend: incluir el modelo SQLAlchemy, el schema Pydantic y la firma del Domain Service
+    - Para frontend: incluir la firma del store Zustand y los componentes principales
+    - Mencionar qué migraciones Alembic se necesitan y su orden
+    - Documentar los eventos WebSocket que el change produce o consume
+    - Indicar qué endpoints REST expone el change (método + path + auth requerida)
+
+  tasks:
+    - Cada tarea debe ser atómica y verificable independientemente
+    - Ordenar las tareas respetando dependencias: modelos → migraciones → servicios → routers → frontend → tests
+    - Incluir una tarea explícita de tests para cada capa (no agrupar "escribir tests" al final)
+    - La última tarea siempre debe ser: verificar que los tests pasen y el linter no reporta errores
+    - Máximo 12 tareas por change — si hay más, dividir en dos changes
+    - Si el change modifica un modelo creado en un change anterior, crear una NUEVA migración numerada consecutivamente — NUNCA modificar una migración ya archivada

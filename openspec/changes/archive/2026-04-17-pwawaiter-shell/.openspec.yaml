@@ -1,0 +1,5 @@
+name: pwawaiter-shell
+schema: spec-driven
+status: archived
+archivedAt: "2026-04-17"
+note: "Artifacts (proposal/design/tasks) lost during archive mv failure on Windows. Implementation complete in pwaWaiter/src/ — 68/71 tasks, 45 tests passing, 0 TypeScript errors."

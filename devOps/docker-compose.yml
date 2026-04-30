@@ -1,0 +1,206 @@
+# Docker Compose for Integrador Backend
+# Services: PostgreSQL with pgvector, Redis, pgAdmin, REST API, WebSocket Gateway
+#
+# Quick Start:
+#   docker compose up -d              # Start all services
+#   docker compose up -d db redis     # Start only DB and Redis (for local dev)
+#   docker compose logs -f            # View logs
+#   docker compose logs -f backend    # View backend logs only
+#   docker compose down               # Stop services
+#   docker compose down -v            # Stop and remove volumes (reset data)
+#
+# Health Check:
+#   docker compose ps                 # Check service status
+#   curl http://localhost:8000/api/health/detailed  # Check all dependencies
+#
+# Connection Info:
+#   PostgreSQL: localhost:5432 (user: postgres, password: postgres, db: menu_ops)
+#   Redis: localhost:6380 (no auth)
+#   pgAdmin: http://localhost:5050 (email: admin@admin.com, password: admin)
+#   REST API: http://localhost:8000
+#   WebSocket: ws://localhost:8001
+#
+# Note: Redis is exposed on port 6380 to avoid conflicts with local Redis installations
+#
+# pwaMenu (C-19 — MercadoPago) — RUNS NATIVELY in development (npm run dev in pwaMenu/).
+# When Dockerizing pwaMenu for production, pass these build-time args:
+#   VITE_MP_PUBLIC_KEY=TEST-xxx     — MercadoPago public key (never server key)
+#   VITE_MP_RETURN_URL=https://...  — Redirect URL after payment (must match MP dashboard config)
+#   VITE_ENABLE_SPLIT_METHODS=...   — Comma-separated: by_consumption,custom (or empty to disable)
+# Example (future pwaMenu service):
+#   build:
+#     context: ../pwaMenu
+#     args:
+#       VITE_MP_PUBLIC_KEY: ${VITE_MP_PUBLIC_KEY:?VITE_MP_PUBLIC_KEY is required}
+#       VITE_MP_RETURN_URL: ${VITE_MP_RETURN_URL:?VITE_MP_RETURN_URL is required}
+#       VITE_ENABLE_SPLIT_METHODS: ${VITE_ENABLE_SPLIT_METHODS:-}
+# [BLOQUEANTE — review humano required before adding pwaMenu container to production]
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: integrador_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-menu_ops}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Performance tuning for development
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-menu_ops}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: integrador_redis
+    # Redis exposed on 6380 to avoid conflicts with local Redis
+    # Application .env should have: REDIS_URL=redis://localhost:6380
+    ports:
+      - "6380:6379"
+    volumes:
+      - redisdata:/data
+    # Enable append-only file for data persistence
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # REST API Backend (FastAPI)
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: integrador_backend
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-menu_ops}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-me-in-production}
+      - JWT_ISSUER=${JWT_ISSUER:-menu-ops}
+      - JWT_AUDIENCE=${JWT_AUDIENCE:-menu-ops-users}
+      - TABLE_TOKEN_SECRET=${TABLE_TOKEN_SECRET:-table-token-secret-change-me}
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      - JWT_TABLE_TOKEN_EXPIRE_HOURS=${JWT_TABLE_TOKEN_EXPIRE_HOURS:-3}
+      - PYTHONPATH=/app/backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    # For development: mount source code for hot reload
+    volumes:
+      - ../backend:/app/backend:ro
+    command: ["python", "-m", "uvicorn", "rest_api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # WebSocket Gateway (C-09)
+  ws_gateway:
+    build:
+      context: ..
+      dockerfile: ws_gateway/Dockerfile
+    container_name: integrador_ws_gateway
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-dev-jwt-secret-change-in-production-min-32}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - TABLE_TOKEN_SECRET=${TABLE_TOKEN_SECRET:-dev-table-secret-change-in-production-min-32chars}
+      - TABLE_TOKEN_TTL_SECONDS=${TABLE_TOKEN_TTL_SECONDS:-10800}
+      - WS_ALLOWED_ORIGINS=${WS_ALLOWED_ORIGINS:-}
+      - WS_ALLOW_NO_ORIGIN=${WS_ALLOW_NO_ORIGIN:-true}
+      - WS_MAX_CONNECTIONS=${WS_MAX_CONNECTIONS:-1000}
+      - WS_MAX_CONNECTIONS_PER_USER=${WS_MAX_CONNECTIONS_PER_USER:-3}
+      - WS_BROADCAST_WORKERS=${WS_BROADCAST_WORKERS:-10}
+      - WS_BROADCAST_QUEUE_SIZE=${WS_BROADCAST_QUEUE_SIZE:-5000}
+      - WS_STREAM_CRITICAL=${WS_STREAM_CRITICAL:-events:critical}
+      - WS_STREAM_GROUP=${WS_STREAM_GROUP:-ws_gateway_group}
+      - WS_STREAM_DLQ=${WS_STREAM_DLQ:-events:dlq}
+      - WS_METRICS_TOKEN=${WS_METRICS_TOKEN:-}
+      - PYTHONPATH=/app/backend
+    ports:
+      - "8001:8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    # Development: mount source for hot reload
+    volumes:
+      - ../backend:/app/backend:ro
+      - ../ws_gateway:/app/ws_gateway:ro
+    command: ["python", "-m", "uvicorn", "ws_gateway.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: integrador_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@admin.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Ollama is optional for RAG functionality
+  # On Windows, you may prefer to run Ollama natively for better performance
+  # Uncomment the following service if you want to run Ollama in Docker
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: integrador_ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama:/root/.ollama
+  #   restart: unless-stopped
+  #   # For GPU support on Linux, add:
+  #   # deploy:
+  #   #   resources:
+  #   #     reservations:
+  #   #       devices:
+  #   #         - driver: nvidia
+  #   #           count: 1
+  #   #           capabilities: [gpu]
+
+volumes:
+  pgdata:
+    name: integrador_pgdata
+  redisdata:
+    name: integrador_redisdata
+  pgadmin_data:
+    name: integrador_pgadmin
+  # ollama:
+  #   name: integrador_ollama

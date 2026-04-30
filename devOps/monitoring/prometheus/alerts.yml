@@ -1,0 +1,138 @@
+# Prometheus Alert Rules for Integrador (C-23: monitoring-production)
+# Referenced from prometheus.yml rule_files section.
+#
+# Alert thresholds (from design.md):
+#   HighErrorRate   — 5xx rate > 1% sustained for 5 minutes
+#   BackendDown     — backend target unreachable for > 1 minute
+#   RedisDown       — redis_exporter target unreachable for > 1 minute
+#   PostgresDown    — postgres_exporter target unreachable for > 1 minute
+#   HighLatency     — p95 request latency > 2 seconds for 5 minutes
+#   RateLimitSpike  — 429 rate > 50 per minute
+
+groups:
+  - name: integrador.availability
+    interval: 30s
+    rules:
+      # ── Backend availability ──────────────────────────────────────────────
+      - alert: BackendDown
+        expr: |
+          absent(up{job="backend"} == 1)
+          OR
+          count(up{job="backend"} == 1) == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "Backend is down"
+          description: >
+            No backend instances are reachable by Prometheus for more than 1 minute.
+            Prometheus target: {{ $labels.instance }}.
+            Check: docker compose ps backend backend-2
+
+      # ── Redis availability ────────────────────────────────────────────────
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: redis
+        annotations:
+          summary: "Redis exporter is down (Redis may be unreachable)"
+          description: >
+            redis_exporter cannot reach Redis for more than 1 minute.
+            Redis is required for sessions, events, and WebSocket broadcast.
+            Check: docker compose ps redis
+
+      # ── PostgreSQL availability ───────────────────────────────────────────
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: postgres
+        annotations:
+          summary: "PostgreSQL exporter is down (PostgreSQL may be unreachable)"
+          description: >
+            postgres_exporter cannot reach PostgreSQL for more than 1 minute.
+            Check: docker compose ps db
+
+  - name: integrador.errors
+    interval: 30s
+    rules:
+      # ── High 5xx error rate ───────────────────────────────────────────────
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="backend", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="backend"}[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "High 5xx error rate on backend"
+          description: >
+            5xx error rate is {{ $value | humanizePercentage }} (threshold: 1%)
+            averaged over the last 5 minutes.
+            Check recent backend logs: docker compose logs --tail=100 backend
+
+      # ── Rate limit spike ──────────────────────────────────────────────────
+      - alert: RateLimitSpike
+        expr: |
+          sum(rate(http_requests_total{job="backend", status="429"}[1m])) * 60 > 50
+        for: 2m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "Rate limit spike detected"
+          description: >
+            More than 50 HTTP 429 responses per minute for at least 2 minutes.
+            This may indicate a brute-force or DDoS attempt.
+            Current rate: {{ $value | humanize }} req/min
+
+  - name: integrador.latency
+    interval: 30s
+    rules:
+      # ── High request latency ──────────────────────────────────────────────
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(http_request_duration_seconds_bucket{job="backend"}[5m])
+            )
+          ) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "High p95 request latency on backend"
+          description: >
+            The 95th percentile request latency is {{ $value | humanizeDuration }}
+            (threshold: 2 seconds), sustained for 5 minutes.
+            Investigate: slow queries, DB connection pool saturation, or memory pressure.
+
+  - name: integrador.websocket
+    interval: 30s
+    rules:
+      # ── WebSocket gateway down ────────────────────────────────────────────
+      - alert: WebSocketGatewayDown
+        expr: |
+          absent(up{job="ws_gateway"} == 1)
+          OR
+          count(up{job="ws_gateway"} == 1) == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: ws_gateway
+        annotations:
+          summary: "WebSocket gateway is down"
+          description: >
+            No ws_gateway instances are reachable by Prometheus for more than 1 minute.
+            Real-time features (orders, kitchen display, waiter notifications) are unavailable.
+            Check: docker compose ps ws_gateway ws_gateway_2

@@ -1,0 +1,21 @@
+# Dashboard — Development Dockerfile
+#
+# Build context: ./Dashboard  (set in compose.yaml)
+# Hot-reload: src/ y public/ se montan como volumen.
+# Las variables VITE_* se inyectan en build-time vía ARG o en runtime vía env.
+
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Instalar dependencias primero (mejor cache de Docker)
+COPY package*.json .
+RUN npm install
+
+# Copiar el resto del proyecto (sobreescrito parcialmente por volúmenes en dev)
+COPY . .
+
+EXPOSE 5177
+
+# --host expone Vite en 0.0.0.0 para que el host pueda alcanzarlo
+CMD ["npm", "run", "dev", "--", "--host"]

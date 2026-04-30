@@ -1,0 +1,6 @@
+# Datasources are provisioned by individual files:
+# - prometheus.yml (Prometheus, isDefault: true)
+# - loki.yml (Loki, isDefault: false)
+apiVersion: 1
+
+datasources: []

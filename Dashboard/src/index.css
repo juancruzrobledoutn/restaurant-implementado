@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  /* Primary orange — oklch ≈ #f97316 */
+  --color-primary: oklch(70% 0.17 45);
+  --color-primary-dark: oklch(63% 0.17 45);
+  --color-primary-light: oklch(77% 0.17 45);
+  --color-primary-foreground: oklch(100% 0 0);
+}
+
+/* Muted text — used across pages for secondary/helper copy */
+:root {
+  --text-muted: oklch(45% 0.02 264); /* ~gray-600, readable on light backgrounds */
+}
+
+/* Dark mode via [data-theme="dark"] on <html> */
+[data-theme="dark"] {
+  --color-background: oklch(14.5% 0.025 264);
+  --color-foreground: oklch(98% 0.01 264);
+  --color-border: oklch(22% 0.02 264);
+  --text-muted: oklch(65% 0.02 264); /* ~gray-400, readable on dark backgrounds */
+}

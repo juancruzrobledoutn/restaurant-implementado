@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #f97316;
+  --color-primary-dark: #ea6c0a;
+  --color-primary-light: #fb923c;
+
+  /* Animation colors per design spec (C-21) */
+  --color-anim-red: #ef4444;
+  --color-anim-yellow: #eab308;
+  --color-anim-orange: #f97316;
+  --color-anim-violet: #a855f7;
+  --color-anim-blue: #3b82f6;
+
+  /* Custom animation keyframes */
+  --animate-blink-red: blink-red 1s ease-in-out infinite;
+  --animate-blink-orange: blink-orange 1.2s ease-in-out infinite;
+  --animate-blink-blue: blink-blue 0.8s ease-in-out infinite;
+  --animate-pulse-yellow: pulse-yellow 1.5s ease-in-out infinite;
+  --animate-pulse-violet: pulse-violet 1.5s ease-in-out infinite;
+}
+
+@keyframes blink-red {
+  0%, 100% { border-color: #ef4444; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { border-color: #dc2626; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+}
+
+@keyframes blink-orange {
+  0%, 100% { border-color: #f97316; box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }
+  50% { border-color: #ea580c; box-shadow: 0 0 0 4px rgba(249, 115, 22, 0); }
+}
+
+@keyframes blink-blue {
+  0%, 100% { border-color: #3b82f6; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  50% { border-color: #2563eb; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0); }
+}
+
+@keyframes pulse-yellow {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(234, 179, 8, 0.15); }
+}
+
+@keyframes pulse-violet {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(168, 85, 247, 0.15); }
+}
+
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light;
+  color: rgb(24 24 27);
+  background-color: rgb(250 250 250);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body,
+#root {
+  min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  /* Respect iOS safe areas (notch, home indicator) when installed as PWA */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+button {
+  font-family: inherit;
+}

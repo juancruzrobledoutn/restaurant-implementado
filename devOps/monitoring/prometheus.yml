@@ -1,0 +1,77 @@
+# Prometheus Configuration for Integrador
+# Scrapes backend, ws_gateway, and infrastructure exporters
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+# Storage retention configured via CLI flag --storage.tsdb.retention.time=15d
+
+scrape_configs:
+  # -------------------------------------------------------------------
+  # Backend REST API (FastAPI) - /metrics endpoint
+  # -------------------------------------------------------------------
+  - job_name: "backend"
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "backend:8000"
+          - "backend-2:8000"
+        labels:
+          service: backend
+
+  # -------------------------------------------------------------------
+  # WebSocket Gateway - /ws/metrics endpoint
+  # -------------------------------------------------------------------
+  - job_name: "ws_gateway"
+    metrics_path: /ws/metrics
+    static_configs:
+      - targets:
+          - "ws_gateway:8001"
+          - "ws_gateway_2:8001"
+        labels:
+          service: ws_gateway
+
+  # -------------------------------------------------------------------
+  # Redis Exporter
+  # -------------------------------------------------------------------
+  - job_name: "redis"
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+        labels:
+          service: redis
+
+  # -------------------------------------------------------------------
+  # Node Exporter (host metrics)
+  # -------------------------------------------------------------------
+  - job_name: "node"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          service: node
+
+  # -------------------------------------------------------------------
+  # PostgreSQL Exporter
+  # -------------------------------------------------------------------
+  - job_name: "postgres"
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels:
+          service: postgres
+
+  # -------------------------------------------------------------------
+  # Nginx (via stub_status if configured)
+  # -------------------------------------------------------------------
+  - job_name: "nginx"
+    static_configs:
+      - targets: ["nginx-exporter:9113"]
+        labels:
+          service: nginx
+
+  # -------------------------------------------------------------------
+  # Prometheus self-monitoring
+  # -------------------------------------------------------------------
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

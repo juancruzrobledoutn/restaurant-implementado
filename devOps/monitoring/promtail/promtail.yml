@@ -1,0 +1,107 @@
+# Promtail Configuration for Integrador (C-23: monitoring-production)
+# Scrapes Docker container logs via Docker socket, parses JSON, pushes to Loki.
+#
+# Labels added to every log stream:
+#   job       — "integrador"
+#   service   — Docker Compose service name (backend, ws_gateway, nginx, etc.)
+#   container — Docker container name
+#
+# JSON parsing (backend + ws_gateway):
+#   Extracts: level, logger, request_id → promoted to Loki stream labels
+#   This enables LogQL queries like:
+#     {service="backend", level="ERROR"}
+#     {service="backend"} | json | request_id = "abc-123"
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Docker service discovery (label-based — preferred method)
+  # Requires Docker socket mounted at /var/run/docker.sock
+  # ─────────────────────────────────────────────────────────────────────────────
+  - job_name: docker-sd
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 15s
+
+    relabel_configs:
+      # Use compose service name as the "service" label
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+      # Use container name for debugging
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      # Job label
+      - replacement: integrador
+        target_label: job
+
+    pipeline_stages:
+      # Parse Docker JSON log wrapper (adds stream, time fields)
+      - docker: {}
+
+      # ── Backend + ws_gateway: parse structured JSON logs ─────────────────
+      - match:
+          selector: '{service=~"backend.*|ws_gateway.*"}'
+          stages:
+            - json:
+                expressions:
+                  level: level
+                  logger: logger
+                  request_id: request_id
+                  user_id: user_id
+                  tenant_id: tenant_id
+                  timestamp: timestamp
+            # Promote these fields to Loki stream labels for efficient filtering
+            - labels:
+                level:
+                logger:
+            # Promote request_id as a label only when non-empty
+            # (avoids cardinality explosion — request_id is high-cardinality
+            #  so keep it as a log line field, not a stream label)
+            - timestamp:
+                source: timestamp
+                format: RFC3339Nano
+                fallback_formats:
+                  - "2006-01-02T15:04:05.999999999Z07:00"
+                  - "2006-01-02T15:04:05Z"
+
+      # ── Nginx: parse access log format ───────────────────────────────────
+      - match:
+          selector: '{service="nginx"}'
+          stages:
+            - regex:
+                expression: '^(?P<remote_addr>[\w.]+) - (?P<remote_user>\S+) \[(?P<time_local>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+) (?P<protocol>\S+)" (?P<status>\d+) (?P<body_bytes_sent>\d+)'
+            - labels:
+                method:
+                status:
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Fallback: scrape log files from mounted /var/lib/docker/containers/
+  # Used when Docker socket SD is unavailable (e.g., rootless Docker).
+  # ─────────────────────────────────────────────────────────────────────────────
+  - job_name: docker-files
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: integrador
+          __path__: /var/lib/docker/containers/*/*-json.log
+
+    pipeline_stages:
+      - docker: {}
+
+      - regex:
+          source: filename
+          expression: '/var/lib/docker/containers/(?P<container_id>[^/]+)/.*'
+
+      - labels:
+          container_id:

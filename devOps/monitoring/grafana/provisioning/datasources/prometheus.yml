@@ -1,0 +1,18 @@
+# Grafana Datasource Provisioning — Prometheus (C-23: monitoring-production)
+# Automatically creates the Prometheus datasource at Grafana startup.
+# No manual import or UI configuration required.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: integrador-prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: "15s"
+      httpMethod: POST
+      # Exemplars: link from metrics to traces (disabled until OTEL is adopted)
+      exemplarTraceIdDestinations: []

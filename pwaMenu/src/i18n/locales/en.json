@@ -1,0 +1,280 @@
+{
+  "app": {
+    "name": "Buen Sabor",
+    "loading": "Loading...",
+    "error": "An error occurred"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "back": "Back",
+    "close": "Close",
+    "confirm": "Confirm",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
+    "search": "Search",
+    "clear": "Clear",
+    "accept": "Accept",
+    "continue": "Continue",
+    "yes": "Yes",
+    "no": "No",
+    "optional": "Optional"
+  },
+  "scanner": {
+    "title": "Scan your table",
+    "instructions": "Point the camera at the QR code on your table to get started",
+    "manualFallback": "Can't scan? Enter the details manually",
+    "manualBranchSlug": "Branch code",
+    "manualTableCode": "Table code",
+    "manualToken": "Token (on the QR)",
+    "manualSubmit": "Enter",
+    "permissionDenied": "Camera permission denied. Please enter the details manually.",
+    "sessionExpired": "Your session has expired. Please scan the QR code again.",
+    "invalidQr": "Invalid QR code. Try again or use the manual form.",
+    "cameraError": "Could not access the camera",
+    "askWaiter": "Ask your waiter for the activation link"
+  },
+  "session": {
+    "activating": "Activating your session...",
+    "error": "Could not activate the session. Please scan again.",
+    "persistWarning": "Your session cannot be saved on this device. If you close the tab you will need to scan again.",
+    "expired": "Your session has expired",
+    "active": "Active session"
+  },
+  "menu": {
+    "title": "Menu",
+    "search": "Search the menu...",
+    "empty": "The menu is currently empty",
+    "loading": "Loading menu...",
+    "filters": "Filters",
+    "noResults": "No products match your search",
+    "categories": "Categories",
+    "allCategories": "All categories",
+    "clearFilters": "Clear filters"
+  },
+  "product": {
+    "addToCart": "Add to cart",
+    "allergens": "Allergens",
+    "imageAlt": "Image of {{name}}",
+    "unavailable": "Unavailable",
+    "priceCents": "Price",
+    "description": "Description"
+  },
+  "allergen": {
+    "title": "Filter by allergens",
+    "clear": "Clear filters",
+    "GLUTEN": "Gluten",
+    "CRUSTACEAN": "Crustaceans",
+    "EGG": "Egg",
+    "FISH": "Fish",
+    "PEANUT": "Peanut",
+    "SOY": "Soy",
+    "MILK": "Milk",
+    "NUTS": "Nuts",
+    "CELERY": "Celery",
+    "MUSTARD": "Mustard",
+    "SESAME": "Sesame",
+    "SULPHITE": "Sulphites",
+    "LUPIN": "Lupin",
+    "MOLLUSC": "Molluscs"
+  },
+  "cart": {
+    "title": "Your cart",
+    "empty": "Your cart is empty",
+    "goToMenu": "Go to menu",
+    "add": "Add",
+    "remove": "Remove",
+    "increment": "Increase quantity",
+    "decrement": "Decrease quantity",
+    "myItems": "My orders",
+    "sharedItems": "Others' orders",
+    "sharedBy": "Ordered by {{name}}",
+    "itemCount_one": "{{count}} item",
+    "itemCount_other": "{{count}} items",
+    "pending": "Syncing...",
+    "confirmedSubtotal": "Confirmed subtotal",
+    "total": "Total",
+    "confirm": {
+      "cta": "Review order",
+      "title": "Confirm order",
+      "notes_label": "Notes for the kitchen",
+      "notes_placeholder": "e.g. no salt, peanut allergy...",
+      "submit": "Send round",
+      "stockAvailable": "Available: {{available}} / Requested: {{requested}}"
+    },
+    "blocked": {
+      "paying": {
+        "tooltip": "The check has been requested. No new orders can be added.",
+        "banner": "The check has been requested. You cannot add new orders."
+      }
+    }
+  },
+  "rounds": {
+    "title": "My rounds",
+    "empty": "You haven't sent any rounds yet",
+    "submitted": "Round sent successfully!",
+    "roundNumber": "Round {{number}}",
+    "submittedAt": "Sent at {{time}}",
+    "readyAt": "Ready at {{time}}",
+    "servedAt": "Served at {{time}}",
+    "showCanceled": "Show canceled",
+    "hideCanceled": "Hide canceled",
+    "status": {
+      "pending": "Pending",
+      "confirmed": "Confirmed",
+      "submitted": "Waiting",
+      "in_kitchen": "In kitchen",
+      "ready": "Ready!",
+      "served": "Served",
+      "canceled": "Canceled"
+    }
+  },
+  "connection": {
+    "reconnecting": "Reconnecting...",
+    "offline": "Offline",
+    "connected": "Connected",
+    "auth_failed": "Authentication error"
+  },
+  "offline": {
+    "banner": {
+      "disconnected": "No connection — reconnecting...",
+      "pending": "{{count}} pending action syncing"
+    }
+  },
+  "errors": {
+    "cart": {
+      "add_failed": "Could not add the item. Retrying...",
+      "session_paying": "The check has been requested. Redirecting to menu...",
+      "insufficient_stock": "Some products don't have enough stock:"
+    },
+    "retry": {
+      "gave_up": "We couldn't complete the operation after several attempts. Please try again."
+    }
+  },
+  "error": {
+    "notFound": "Page not found",
+    "notFoundMessage": "The page you are looking for does not exist.",
+    "network": "Connection error. Check your internet and try again.",
+    "unknown": "Something went wrong. Please try again.",
+    "tryAgain": "Try again",
+    "goToScan": "Go to scanner",
+    "sessionRequired": "You need an active session to view the menu"
+  },
+  "check": {
+    "title": "Your check",
+    "request": "Request check",
+    "requesting": "Requesting check...",
+    "total": "Total",
+    "remaining": "Remaining balance",
+    "status": {
+      "open": "Open",
+      "requested": "Requested",
+      "paid": "Paid",
+      "closed": "Closed",
+      "cancelled": "Cancelled"
+    },
+    "split": {
+      "label": "Split method",
+      "equal": "Split equally",
+      "by_consumption": "By individual consumption",
+      "custom": "Custom"
+    },
+    "charges": {
+      "title": "Charges",
+      "empty": "No charges yet",
+      "diner": "Diner",
+      "amount": "Amount"
+    },
+    "paid": {
+      "title": "Check paid!",
+      "message": "Thank you for your visit. See you next time!",
+      "receipt": "View receipt"
+    }
+  },
+  "payment": {
+    "title": "Payment with MercadoPago",
+    "cta": "Pay with MercadoPago",
+    "processing": "Processing payment...",
+    "redirecting": "Redirecting to MercadoPago...",
+    "waiting": "Waiting for payment confirmation...",
+    "retry": "Retry payment",
+    "cancel": "Cancel payment",
+    "approved": {
+      "title": "Payment approved!",
+      "message": "Your payment was processed successfully.",
+      "amount": "Amount paid: {{amount}}"
+    },
+    "rejected": {
+      "title": "Payment rejected",
+      "message": "The payment could not be processed. You can try again.",
+      "retry": "Try again"
+    },
+    "failed": {
+      "title": "Payment error",
+      "message": "A technical error occurred. Try again or contact staff.",
+      "mismatch": "Payment result mismatch. Please contact staff."
+    },
+    "timeout": "Waiting time expired. Check your payment status.",
+    "polling": "Verifying payment status..."
+  },
+  "customer": {
+    "profile": {
+      "title": "My profile",
+      "notFound": "No profile associated with this session.",
+      "history": "Visit history",
+      "historyEmpty": "You have no registered visits yet.",
+      "preferences": "Your favorites",
+      "preferencesEmpty": "No preferences registered yet.",
+      "visitCount": "{{count}} visit",
+      "visitCount_other": "{{count}} visits",
+      "visitedAt": "Visited on {{date}}",
+      "timesOrdered": "Ordered {{count}} times"
+    },
+    "optin": {
+      "title": "Save your details",
+      "subtitle": "Get personalized benefits on every visit",
+      "name": "Name",
+      "namePlaceholder": "Your name",
+      "email": "Email",
+      "emailPlaceholder": "your@email.com",
+      "submit": "Save details",
+      "submitting": "Saving...",
+      "success": "Details saved successfully!",
+      "alreadyOptedIn": "You already have saved details.",
+      "errors": {
+        "nameRequired": "Name is required (minimum 2 characters)",
+        "emailInvalid": "Please enter a valid email",
+        "consentRequired": "You must accept the terms to continue"
+      }
+    }
+  },
+  "consent": {
+    "title": "Data consent",
+    "checkboxLabel": "I accept the use of my personal data",
+    "legalText": "By accepting, you authorize Buen Sabor to store and process your personal data (name and email) to improve your customer experience. You can request deletion of your data at any time by contacting the venue.",
+    "body": "Your data is protected in accordance with applicable data protection laws. Your device IP is stored in anonymized form for consent records.",
+    "version": "v1",
+    "required": "You must accept to continue",
+    "privacy": "View privacy policy"
+  },
+  "errors": {
+    "cart": {
+      "add_failed": "Could not add the item. Retrying...",
+      "session_paying": "The check has been requested. Redirecting to menu...",
+      "insufficient_stock": "Some products don't have enough stock:"
+    },
+    "billing": {
+      "request_failed": "Could not request the check. Please try again.",
+      "session_not_open": "The session is not open. Cannot request a check.",
+      "check_conflict": "An active check already exists for this session.",
+      "preference_error": "Could not create the payment link. Please try again.",
+      "payment_mismatch": "Payment result mismatch. Please contact staff."
+    },
+    "retry": {
+      "gave_up": "We couldn't complete the operation after several attempts. Please try again."
+    }
+  }
+}

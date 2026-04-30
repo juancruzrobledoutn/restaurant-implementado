@@ -1,0 +1,28 @@
+# WebSocket Gateway — Python 3.12 dependencies
+# Install: pip install -r ws_gateway/requirements.txt
+# From repo root: PYTHONPATH=backend python -m uvicorn ws_gateway.main:app --port 8001
+
+# Web framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+websockets==13.1
+
+# Configuration — shared with backend
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# Redis — async client with hiredis C extension for performance
+redis[hiredis]==5.2.0
+
+# Auth — JWT decoding (no DB, only verify)
+pyjwt==2.10.1
+
+# Observability — Prometheus metrics endpoint (C-23: monitoring-production)
+prometheus-client==0.21.0
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+fakeredis==2.26.2
+httpx==0.28.1

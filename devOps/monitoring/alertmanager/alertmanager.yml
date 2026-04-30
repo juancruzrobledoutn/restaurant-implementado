@@ -1,0 +1,105 @@
+# Alertmanager Configuration for Integrador (C-23: monitoring-production)
+#
+# Receiver: generic webhook (Slack, PagerDuty, custom — configured via env var)
+# Set ALERTMANAGER_WEBHOOK_URL in devOps/.env to enable outbound notifications.
+#
+# Grouping strategy:
+#   - Group alerts by alertname so one notification covers all instances
+#   - Initial wait: 30s (allows related alerts to bundle)
+#   - Repeat interval: 4h (don't spam on persistent issues)
+#
+# Inhibit rules:
+#   - If BackendDown or WebSocketGatewayDown fires, suppress HighErrorRate
+#     and HighLatency for the same component (downstream symptoms)
+#   - If PostgresDown fires, suppress backend availability alerts
+#     (DB down causes backend down — root cause is postgres)
+
+global:
+  # How long to wait before declaring a resolved alert truly resolved
+  resolve_timeout: 5m
+
+  # Default HTTP client timeout for webhook calls
+  http_config:
+    follow_redirects: true
+
+# ─── Routing ──────────────────────────────────────────────────────────────────
+
+route:
+  # Default receiver for all alerts
+  receiver: webhook
+
+  # Group alerts together to avoid notification storms
+  group_by: ["alertname", "component"]
+
+  # Wait this long for more alerts to arrive before sending first notification
+  group_wait: 30s
+
+  # After the first notification, wait this long before sending another
+  # for the same group of alerts
+  group_interval: 5m
+
+  # How long to wait before re-sending if the alert is still firing
+  repeat_interval: 4h
+
+  # Per-severity routing
+  routes:
+    # Critical alerts: shorter repeat interval (1h)
+    - matchers:
+        - severity = "critical"
+      receiver: webhook
+      repeat_interval: 1h
+      continue: false
+
+    # Warning alerts: default 4h repeat
+    - matchers:
+        - severity = "warning"
+      receiver: webhook
+      repeat_interval: 4h
+      continue: false
+
+# ─── Receivers ────────────────────────────────────────────────────────────────
+
+receivers:
+  # Null receiver: discards all alerts (dev default).
+  # To enable webhooks in production, replace with:
+  #   webhook_configs:
+  #     - url: "https://your-webhook-endpoint"
+  #       send_resolved: true
+  # Alertmanager does NOT expand env vars — set a literal URL, not ${VAR}.
+  - name: webhook
+
+# ─── Inhibit rules ────────────────────────────────────────────────────────────
+# Suppress downstream alerts when the root cause alert is already firing.
+
+inhibit_rules:
+  # BackendDown suppresses HighErrorRate and HighLatency for backend
+  # (if the backend is down, it will naturally have high errors and latency)
+  - source_matchers:
+      - alertname = "BackendDown"
+    target_matchers:
+      - alertname =~ "HighErrorRate|HighLatency"
+      - component = "backend"
+    equal: ["component"]
+
+  # WebSocketGatewayDown suppresses derived websocket alerts
+  - source_matchers:
+      - alertname = "WebSocketGatewayDown"
+    target_matchers:
+      - component = "ws_gateway"
+    equal: ["component"]
+
+  # PostgresDown suppresses BackendDown
+  # (backend goes down when postgres is unreachable — root cause is postgres)
+  - source_matchers:
+      - alertname = "PostgresDown"
+    target_matchers:
+      - alertname = "BackendDown"
+    equal: []
+
+  # RedisDown suppresses WebSocketGatewayDown
+  # (ws_gateway depends on Redis for pub/sub and event streaming)
+  - source_matchers:
+      - alertname = "RedisDown"
+    target_matchers:
+      - alertname = "WebSocketGatewayDown"
+    equal: []

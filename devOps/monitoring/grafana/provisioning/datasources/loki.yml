@@ -1,0 +1,22 @@
+# Grafana Datasource Provisioning — Loki (C-23: monitoring-production)
+# Automatically creates the Loki datasource at Grafana startup.
+# No manual import or UI configuration required.
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    uid: integrador-loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: false
+    jsonData:
+      maxLines: 1000
+      # Derived fields: extract request_id from log lines and create a link
+      # to filter Loki by that request_id (correlate logs across services)
+      derivedFields:
+        - datasourceUid: integrador-loki
+          matcherRegex: '"request_id":"([^"]+)"'
+          name: RequestID
+          url: '/explore?orgId=1&left=["now-1h","now","Loki",{"expr":"{job=\\"integrador\\"} | json | request_id = \\"${__value.raw}\\""}]'

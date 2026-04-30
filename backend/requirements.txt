@@ -1,0 +1,47 @@
+# Integrador Backend — Python 3.12 dependencies
+# Install: pip install -r requirements.txt
+
+# Web framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+
+# Database — async driver for app, sync psycopg for Alembic
+sqlalchemy[asyncio]==2.0.49
+asyncpg==0.30.0
+psycopg[binary]==3.3.3
+alembic==1.14.0
+
+# Configuration
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# Redis — async client
+redis[hiredis]==5.2.0
+
+# Auth — JWT, password hashing, TOTP 2FA, rate limiting, QR codes
+pyjwt==2.10.1
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1  # Pinned: passlib 1.7.4 incompatible with bcrypt >=4.1 (72-byte limit error)
+pyotp==2.9.0
+slowapi==0.1.9
+qrcode[pil]==8.0
+email-validator==2.3.0
+
+# Push Notifications (C-13)
+# Pulls in cryptography, py-vapid, http_ece transitively
+# Generate VAPID keys: python -c "from py_vapid import Vapid; v = Vapid(); v.generate_keys(); print(v.public_key, v.private_key)"
+pywebpush>=2.0.0
+
+# MercadoPago payment gateway (C-12)
+mercadopago>=2.3.0
+
+# Observability — Prometheus metrics endpoint for FastAPI (C-23)
+prometheus-fastapi-instrumentator==7.0.0
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+httpx==0.28.0
+factory-boy==3.3.1
+aiosqlite==0.20.0
