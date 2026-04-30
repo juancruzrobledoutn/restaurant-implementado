@@ -18,13 +18,22 @@
 # Frontends (Dashboard, pwaMenu, pwaWaiter) deploy SEPARATELY to Vercel.
 # This compose ONLY runs the backend services.
 #
-# Usage:
-#   1. Copy devOps/.env.staging.example to devOps/.env and fill ALL secrets
-#   2. In EasyPanel: create a "Compose" service pointing to this file
-#   3. Set up two domains in EasyPanel:
-#        api.your-domain.com  → backend:8000     (HTTPS)
-#        ws.your-domain.com   → ws_gateway:8001  (HTTPS, WebSocket enabled)
-#   4. Add the Vercel frontend URLs to ALLOWED_ORIGINS and WS_ALLOWED_ORIGINS
+# IMPORTANT — env var strategy for EasyPanel:
+#   Docker Compose interpolates ${VAR} at PARSE time (before merging override files).
+#   EasyPanel passes user-defined env vars via an auto-generated override file —
+#   that's container-level env, NOT shell env, so interpolation cannot see them.
+#
+#   Workaround: this file uses ${VAR:-default} (with placeholder defaults) so that
+#   compose parses successfully. EasyPanel's override then sets the REAL values
+#   directly in each container's environment, taking precedence over the defaults.
+#
+#   YOU MUST set these in EasyPanel's env panel (otherwise placeholders are used):
+#     POSTGRES_PASSWORD       — the real DB password
+#     DATABASE_URL            — full connection string (constructed with the password above)
+#     JWT_SECRET              — min 32 chars
+#     TABLE_TOKEN_SECRET      — min 32 chars (different from JWT)
+#     ALLOWED_ORIGINS         — comma-separated frontend URLs
+#     WS_ALLOWED_ORIGINS      — comma-separated frontend URLs (same as above)
 
 services:
   # --- PostgreSQL with pgvector ---
@@ -32,15 +41,17 @@ services:
     image: pgvector/pgvector:pg16
     container_name: integrador_db_staging
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
-      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      # POSTGRES_DB and POSTGRES_USER are hardcoded for consistency with DATABASE_URL.
+      # If you change them here, also update DATABASE_URL in EasyPanel env.
+      POSTGRES_DB: integrador_staging
+      POSTGRES_USER: integrador
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-INSECURE_PLACEHOLDER_OVERRIDE_IN_EASYPANEL}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8"
     volumes:
       - pgdata-staging:/var/lib/postgresql/data
     # No port exposure — only internal Docker network access (backend reaches db:5432)
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U integrador -d integrador_staging"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -95,16 +106,18 @@ services:
     environment:
       - ENVIRONMENT=staging
       - DEBUG=false
-      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # DATABASE_URL must be set in EasyPanel env vars (full connection string).
+      # The default below is a placeholder that won't connect — replace via EasyPanel.
+      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://integrador:INSECURE_PLACEHOLDER_OVERRIDE_IN_EASYPANEL@db:5432/integrador_staging}
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required (min 32 chars, generate with openssl rand -base64 32)}
+      - JWT_SECRET=${JWT_SECRET:-INSECURE_JWT_OVERRIDE_IN_EASYPANEL_min32chars_____________}
       - JWT_ISSUER=${JWT_ISSUER:-integrador-staging}
       - JWT_AUDIENCE=${JWT_AUDIENCE:-integrador-users}
-      - TABLE_TOKEN_SECRET=${TABLE_TOKEN_SECRET:?TABLE_TOKEN_SECRET is required (min 32 chars)}
+      - TABLE_TOKEN_SECRET=${TABLE_TOKEN_SECRET:-INSECURE_TABLE_TOKEN_OVERRIDE_IN_EASYPANEL_min32_______}
       - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-15}
       - JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
       - JWT_TABLE_TOKEN_EXPIRE_HOURS=${JWT_TABLE_TOKEN_EXPIRE_HOURS:-3}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required (comma-separated Vercel URLs)}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5176,http://localhost:5177,http://localhost:5178}
       - PYTHONPATH=/app
     ports:
       - "8000:8000"
@@ -151,11 +164,11 @@ services:
       - ENVIRONMENT=staging
       - DEBUG=false
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET}
+      - JWT_SECRET=${JWT_SECRET:-INSECURE_JWT_OVERRIDE_IN_EASYPANEL_min32chars_____________}
       - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
-      - TABLE_TOKEN_SECRET=${TABLE_TOKEN_SECRET}
+      - TABLE_TOKEN_SECRET=${TABLE_TOKEN_SECRET:-INSECURE_TABLE_TOKEN_OVERRIDE_IN_EASYPANEL_min32_______}
       - TABLE_TOKEN_TTL_SECONDS=${TABLE_TOKEN_TTL_SECONDS:-10800}
-      - WS_ALLOWED_ORIGINS=${WS_ALLOWED_ORIGINS:?WS_ALLOWED_ORIGINS is required (comma-separated Vercel URLs)}
+      - WS_ALLOWED_ORIGINS=${WS_ALLOWED_ORIGINS:-http://localhost:5176,http://localhost:5177,http://localhost:5178}
       - WS_ALLOW_NO_ORIGIN=false
       - WS_MAX_CONNECTIONS=${WS_MAX_CONNECTIONS:-200}
       - WS_MAX_CONNECTIONS_PER_USER=${WS_MAX_CONNECTIONS_PER_USER:-3}
