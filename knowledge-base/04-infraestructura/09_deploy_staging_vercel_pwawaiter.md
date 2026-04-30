@@ -39,25 +39,29 @@ Es el frontend mas simple de configurar (menos env vars, sin MercadoPago) PERO t
 ### 3. Environment Variables
 
 ```
-VITE_API_URL=https://<backend-host>.<id>.easypanel.host/api
+VITE_API_URL=https://<backend-host>.<id>.easypanel.host
 VITE_WS_URL=wss://<ws-host>.<id>.easypanel.host
 ```
 
-**⚠️ DIFERENCIA CRITICA con Dashboard y pwaMenu:**
+**⚠️ Sobre el `/api` — IMPORTANTE:**
 
+El archivo `pwaWaiter/.env.example` tiene un comentario incorrecto que dice "WITH /api suffix". **No le hagas caso** — esta desactualizado. El codigo real (`src/config/env.ts` linea 12) explicitamente comenta:
+
+```ts
+/** Backend REST API base URL — e.g. http://localhost:8000 (no trailing slash, no /api) */
 ```
-VITE_API_URL=...../api    <-- pwaWaiter SI lleva /api al final
-```
 
-Si lo poneas sin `/api`, las requests del waiter se rompen porque el codigo asume que la base URL ya incluye el prefijo.
+Y `src/services/api.ts:122` arma la URL como `${env.API_URL}${path}` donde `path` ya empieza con `/api/...`. Si VITE_API_URL termina en `/api`, las requests salen a `/api/api/public/branches` y rompe con 404.
 
-Resumen comparativo de los 3 frontends:
+Resumen real de los 3 frontends (TODOS sin /api):
 
 | Frontend | `VITE_API_URL` ends with `/api`? |
 |----------|---------------------------------|
 | Dashboard | NO |
 | pwaMenu | NO |
-| pwaWaiter | **SI** |
+| pwaWaiter | NO (a pesar del comentario erroneo del .env.example) |
+
+TODO: corregir el comentario en `pwaWaiter/.env.example` para que diga "WITHOUT /api suffix".
 
 ### 4. Deploy
 
